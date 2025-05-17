@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'dart:async';
+import 'package:permission_handler/permission_handler.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -10,12 +13,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Smart Attendance System',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const BleScannerScreen(),
+    return const MaterialApp(
+      home: BleScannerScreen(),
     );
   }
 }
@@ -28,82 +27,71 @@ class BleScannerScreen extends StatefulWidget {
 }
 
 class _BleScannerScreenState extends State<BleScannerScreen> {
-  final FlutterReactiveBle _ble = FlutterReactiveBle();
-  final List<DiscoveredDevice> _devices = [];
+  final flutterReactiveBle = FlutterReactiveBle();
+  final List<DiscoveredDevice> _foundDevices = [];
+  late StreamSubscription<DiscoveredDevice> _scanStream;
 
-  bool _isScanning = false;
 
-  void _startScan() {
-    _devices.clear();
-    setState(() {
-      _isScanning = true;
-    });
+Future<void> _startScan() async {
+  // Request location permission first
+  final status = await Permission.locationWhenInUse.request();
 
-    _ble.scanForDevices(
-      withServices: [], // Empty means scan for all BLE devices
-      scanMode: ScanMode.lowLatency,
-    ).listen((device) {
-      final alreadyAdded = _devices.any((d) => d.id == device.id);
-      if (!alreadyAdded) {
+  if (status.isGranted) {
+    _foundDevices.clear();
+    _scanStream = flutterReactiveBle
+        .scanForDevices(
+          withServices: [],
+          scanMode: ScanMode.lowLatency,
+        )
+        .listen((device) {
+      final knownDevice = _foundDevices.any((d) => d.id == device.id);
+      if (!knownDevice) {
         setState(() {
-          _devices.add(device);
+          _foundDevices.add(device);
         });
       }
-    }, onError: (e) {
-      setState(() {
-        _isScanning = false;
-      });
-      print('Scan error: $e');
+    }, onError: (error) {
+      debugPrint('Scan error: $error');
     });
+  } else {
+    debugPrint('Location permission not granted');
+    // You can show a dialog or a snackbar to inform the user
+  }
+}
+
+
+
+  void _stopScan() {
+    _scanStream.cancel();
   }
 
-  Widget _buildDeviceList() {
-    if (_devices.isEmpty) {
-      return const Center(child: Text("No devices found yet."));
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      itemCount: _devices.length,
-      itemBuilder: (context, index) {
-        final device = _devices[index];
-        return ListTile(
-          title: Text(device.name.isNotEmpty ? device.name : "(Unnamed device)"),
-          subtitle: Text("ID: ${device.id} • RSSI: ${device.rssi}"),
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _stopScan();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Smart Attendance System'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            ElevatedButton.icon(
-              onPressed: _isScanning ? null : _startScan,
-              icon: const Icon(Icons.bluetooth_searching),
-              label: const Text("Scan"),
+      appBar: AppBar(title: const Text('BLE Scanner')),
+      body: Column(
+        children: [
+          ElevatedButton(onPressed: _startScan, child: const Text("Start Scan")),
+          ElevatedButton(onPressed: _stopScan, child: const Text("Stop Scan")),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _foundDevices.length,
+              itemBuilder: (context, index) {
+                final device = _foundDevices[index];
+                return ListTile(
+                  title: Text(device.name.isNotEmpty ? device.name : "Unknown"),
+                  subtitle: Text("ID: ${device.id}"),
+                );
+              },
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey),
-                ),
-                child: _buildDeviceList(),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

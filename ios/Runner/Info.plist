@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>This app uses Bluetooth to detect nearby attendance beacons.</string>
-
+	<string>App needs Bluetooth to detect nearby devices.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs location access to scan for nearby BLE devices.</string>
+	<string>App needs location access to detect BLE beacons.</string>
+
 
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
